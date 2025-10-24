@@ -13,13 +13,15 @@ WITH tb_daily AS (
     SELECT DISTINCT Idcliente,
             substr(Dtcriacao,0,11) as dtDia
 
-FROM transacoes
+    FROM transacoes
+
+    WHERE Dtcriacao < '{date}'
 ),
 tb_idade AS (
 
     SELECT  Idcliente,
-            CAST(max(julianday('now') - julianday(dtDia)) AS INT ) AS QntPrimeiraTransacao,
-            CAST(min(julianday('now') - julianday(dtDia)) AS INT ) AS QntUltimaTransacao
+            CAST(max(julianday('{date}') - julianday(dtDia)) AS INT ) AS QntPrimeiraTransacao,
+            CAST(min(julianday('{date}') - julianday(dtDia)) AS INT ) AS QntUltimaTransacao
 
     FROM tb_daily
 
@@ -37,7 +39,7 @@ tb_rn AS (
 tb_penultima_transacao AS (
 
     SELECT *,
-            CAST(julianday('now') - julianday(dtDia) AS INT ) AS QntPenultimatransacao
+            CAST(julianday('{date}') - julianday(dtDia) AS INT ) AS QntPenultimatransacao
             
 
     FROM tb_rn
@@ -61,16 +63,16 @@ tb_lifeCycle AS (
 
     FROM tb_idade as t1
 
-    LEFT JOIN tb_penultima_transacao as t2
+    LEFT JOIN tb_penultima_transacao as t2 
 
     ON t1.Idcliente = t2.Idcliente
 )
 
-SELECT DescLifeCycle,
-        COUNT(*) AS qnt
+SELECT date('{date}', '-1 day') AS dtRef,
+        *
 
 FROM tb_lifeCycle
 
-GROUP BY DescLifeCycle
+
 
 
