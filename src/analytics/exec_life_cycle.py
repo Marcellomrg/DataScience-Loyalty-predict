@@ -42,19 +42,18 @@ dates = [
 for i in dates:
 
     with engine_analytics.connect() as con:
+        try:
+            con.execute(sqlalchemy.text(f"DELETE FROM life_cycle WHERE dtRef = date('{i}','-1 day')"))
+            con.commit()
 
-        con.execute(sqlalchemy.text(f"DELETE FROM life_cycle WHERE dtRef = date('{i}','-1 day')"))
-        con.commit()
-        
-    try:
+        except Exception as e:
+            print(e)
 
-        print(i)
-        format_query = query.format(date=i)
-        df = pd.read_sql(format_query,engine_app)
-        df.to_sql("life_cycle",engine_analytics,index=False,if_exists='append')
-    except Exception as e:
-        print(f'Erro na data {i}: {e}')
-        break
+    print(i)
+    format_query = query.format(date=i)
+    df = pd.read_sql(format_query,engine_app)
+    df.to_sql("life_cycle",engine_analytics,index=False,if_exists='append')
+    
 
 # %%
 
