@@ -1,6 +1,9 @@
 # %%
 import pandas as pd
 import sqlalchemy
+import datetime
+from tqdm import tqdm
+
 # %%
 # Importando query
 def import_query(path):
@@ -19,27 +22,20 @@ engine_analytics = sqlalchemy.create_engine("sqlite:///../../data/analytics/data
 
 # %%
 # INGESTAO DE DADOS 
-dates = [
-        "2024-05-01",
-        "2024-06-01",
-        "2024-07-01",
-        "2024-08-01",
-        "2024-09-01",
-        "2024-10-01",
-        "2024-11-01",
-        "2024-12-01",
-        "2025-01-01",
-        "2025-02-01",
-        "2025-03-01",
-        "2025-04-01",
-        "2025-05-01",
-        "2025-06-01",
-        "2025-07-01",
-        "2025-08-01",
-        "2025-09-01"
-]
 
-for i in dates:
+
+def ingest_dates(start,stop):
+    dates = []
+    while start <= stop :
+        dates.append(start)
+        dt_start = datetime.datetime.strptime(start,"%Y-%m-%d") + datetime.timedelta(days=1)
+        start = datetime.datetime.strftime(dt_start,"%Y-%m-%d")
+    return dates 
+
+dates = ingest_dates("2025-03-01","2025-09-01")
+
+
+for i in tqdm(dates):
 
     with engine_analytics.connect() as con:
         try:
