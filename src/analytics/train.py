@@ -2,6 +2,9 @@
 import pandas as pd
 import sqlalchemy
 from sklearn import model_selection
+from feature_engine import imputation,encoding,selection
+
+pd.set_option('display.max_columns',500)
 pd.set_option('display.max_rows',500)
 
 # %%
@@ -85,10 +88,62 @@ analise_bivariada.sort_values(by='ratio',ascending = False)
 remove = analise_bivariada[analise_bivariada['ratio'] == 1].index.tolist()
 remove
 
-for i in remove:
-    features.remove(i)
-    num_features.remove(i)
 # %%
 bivariada_cat = df_analise.groupby('DescLifeCycleAtual')[target].mean()
 bivariada_cat
 # %%
+# SEMMA -MODIFY
+
+# Dropando as features que nao ajudam no meu modelo
+
+X_train[num_features] = X_train[num_features].astype(float)
+X_train.dtypes
+
+remove = analise_bivariada[analise_bivariada['ratio'] == 1].index.tolist()
+remove
+
+drop_features = selection.DropFeatures(remove)
+drop_features
+
+X_train_transform = drop_features.fit_transform(X_train)
+
+# %%
+# IMPUTANDO NAS VARIAVEIS COM MISSING 
+
+missing = X_train.columns[X_train.isna().sum() > 0].tolist()
+missing
+
+fill_0 = list(set(missing[6:-1])-set(remove))
+fill_0
+
+imputation_0 = imputation.ArbitraryNumberImputer(arbitrary_number=0,
+                                                 variables=fill_0)
+imputation_0
+
+X_train_transform = imputation_0.fit_transform(X_train_transform)
+
+# %%
+# Fazendo imputacao da minha variavel categorica
+imputation_cat = imputation.CategoricalImputer(fill_value="Novo Usuario",
+                                               variables=['DescLifeCycleD28'])
+imputation_cat
+
+X_train_transform = imputation_cat.fit_transform(X_train_transform)
+
+# %%
+imputation_1000 = imputation.ArbitraryNumberImputer(arbitrary_number=1000,
+                                                    variables=['AvgintervaloDias',
+                                                               'AvgintervaloDiasD28',
+                                                               'Freq',
+                                                               'AvglifeCycle',
+                                                               'ratio',
+                                                               'qtdDiasUltiAtividade'])
+imputation_1000
+
+X_train_transform = imputation_1000.fit_transform(X_train_transform)
+X_train_transform
+
+# %%
+X_train_transform.isna().sum()
+# %%
+
