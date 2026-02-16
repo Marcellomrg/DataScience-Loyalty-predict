@@ -1,7 +1,7 @@
 # %%
 import pandas as pd
 import sqlalchemy
-from sklearn import model_selection
+from sklearn import model_selection,tree,ensemble,metrics
 from feature_engine import imputation,encoding,selection
 
 pd.set_option('display.max_columns',500)
@@ -13,7 +13,7 @@ con = sqlalchemy.create_engine("sqlite:///../../data/analytics/database.db")
 con
 # %%
 # Acessando minha tabela abt_fiel
-df = pd.read_sql("abt_fiel",con)
+df = pd.read_sql("SELECT * FROM abt_fiel",con)
 df
 # %%
 # SEMMA - SAMPLE
@@ -102,10 +102,8 @@ X_train.dtypes
 remove = analise_bivariada[analise_bivariada['ratio'] == 1].index.tolist()
 remove
 
-drop_features = selection.DropFeatures(remove)
+drop_features = selection.DropFeatures(features_to_drop=remove)
 drop_features
-
-X_train_transform = drop_features.fit_transform(X_train)
 
 # %%
 # IMPUTANDO NAS VARIAVEIS COM MISSING 
@@ -120,17 +118,14 @@ imputation_0 = imputation.ArbitraryNumberImputer(arbitrary_number=0,
                                                  variables=fill_0)
 imputation_0
 
-X_train_transform = imputation_0.fit_transform(X_train_transform)
-
 # %%
 # Fazendo imputacao da minha variavel categorica
 imputation_cat = imputation.CategoricalImputer(fill_value="Novo Usuario",
                                                variables=['DescLifeCycleD28'])
 imputation_cat
 
-X_train_transform = imputation_cat.fit_transform(X_train_transform)
-
 # %%
+# Imputando numero alto para aqueles usuarios que só vinheram somente em uma live 
 imputation_1000 = imputation.ArbitraryNumberImputer(arbitrary_number=1000,
                                                     variables=['AvgintervaloDias',
                                                                'AvgintervaloDiasD28',
@@ -140,10 +135,72 @@ imputation_1000 = imputation.ArbitraryNumberImputer(arbitrary_number=1000,
                                                                'qtdDiasUltiAtividade'])
 imputation_1000
 
+# %%
+# Tratando as variaveis categoricas atraves do One Hot encoding 
+onehot = encoding.OneHotEncoder(variables=cat_features)
+
+# %%
+# Modificando meus dados da base treino 
+X_train_transform = drop_features.fit_transform(X_train)
+X_train_transform = imputation_0.fit_transform(X_train_transform)
+X_train_transform = imputation_cat.fit_transform(X_train_transform)
 X_train_transform = imputation_1000.fit_transform(X_train_transform)
+X_train_transform = onehot.fit_transform(X_train_transform)
 X_train_transform
+# %%
+# Modificando meus dados da base teste
+X_test_transform = drop_features.transform(X_test)
+X_test_transform = imputation_0.transform(X_test_transform)
+X_test_transform = imputation_cat.transform(X_test_transform)
+X_test_transform = imputation_1000.transform(X_test_transform)
+X_test_transform = onehot.transform(X_test_transform)
+X_test_transform
+# %%
+# Modificando meus dados da base OOT
+X_oot_transform = drop_features.transform(df_oot[features])
+X_oot_transform = imputation_0.transform(X_oot_transform)
+X_oot_transform = imputation_cat.transform(X_oot_transform)
+X_oot_transform = imputation_1000.transform(X_oot_transform)
+X_oot_transform = onehot.transform(X_oot_transform)
+X_oot_transform
+
 
 # %%
-X_train_transform.isna().sum()
-# %%
+# SEMMA - MODEL
+#model = tree.DecisionTreeClassifier(random_state=42,
+#                                    min_samples_leaf=50)
+model = ensemble.RandomForestClassifier(n_estimators=150,
+                                        random_state=42,
+                                        min_samples_leaf=200,
+                                        n_jobs=-1)
+model.fit(X_train_transform,y_train)
 
+
+# %%
+# SEMMA - ASSESS 
+
+y_pred_train = model.predict(X_train_transform)
+y_proba_train = model.predict_proba(X_train_transform)[:,1]
+
+y_pred_test = model.predict(X_test_transform)
+y_proba_test = model.predict_proba(X_test_transform)[:,1]
+
+y_pred_oot = model.predict(X_oot_transform)
+y_proba_oot = model.predict_proba(X_oot_transform)[:,1]
+
+acc_train = metrics.accuracy_score(y_train,y_pred_train)
+auc_train = metrics.roc_auc_score(y_train,y_proba_train)
+
+acc_test = metrics.accuracy_score(y_test,y_pred_test)
+auc_test = metrics.roc_auc_score(y_test,y_proba_test)
+
+acc_oot = metrics.accuracy_score(df_oot[target],y_pred_oot)
+auc_oot = metrics.roc_auc_score(df_oot[target],y_proba_oot)
+
+print(f"Acuracia no treino : {acc_train:.2f}")
+print(f"AUC no treino : {auc_train:.2f}")
+print(f"Acuracia no teste : {acc_test:.2f}")
+print(f"AUC no teste : {auc_test:.2f}")
+print(f"Acuracia na OOT : {acc_oot:.2f}")
+print(f"AUC na OOT : {auc_oot:.2f}")
+# %%
