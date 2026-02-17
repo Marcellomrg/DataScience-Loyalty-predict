@@ -1,7 +1,7 @@
 # %%
 import pandas as pd
 import sqlalchemy
-from sklearn import model_selection,tree,ensemble,metrics
+from sklearn import model_selection,tree,ensemble,metrics,pipeline
 from feature_engine import imputation,encoding,selection
 
 pd.set_option('display.max_columns',500)
@@ -140,32 +140,6 @@ imputation_1000
 onehot = encoding.OneHotEncoder(variables=cat_features)
 
 # %%
-# Modificando meus dados da base treino 
-X_train_transform = drop_features.fit_transform(X_train)
-X_train_transform = imputation_0.fit_transform(X_train_transform)
-X_train_transform = imputation_cat.fit_transform(X_train_transform)
-X_train_transform = imputation_1000.fit_transform(X_train_transform)
-X_train_transform = onehot.fit_transform(X_train_transform)
-X_train_transform
-# %%
-# Modificando meus dados da base teste
-X_test_transform = drop_features.transform(X_test)
-X_test_transform = imputation_0.transform(X_test_transform)
-X_test_transform = imputation_cat.transform(X_test_transform)
-X_test_transform = imputation_1000.transform(X_test_transform)
-X_test_transform = onehot.transform(X_test_transform)
-X_test_transform
-# %%
-# Modificando meus dados da base OOT
-X_oot_transform = drop_features.transform(df_oot[features])
-X_oot_transform = imputation_0.transform(X_oot_transform)
-X_oot_transform = imputation_cat.transform(X_oot_transform)
-X_oot_transform = imputation_1000.transform(X_oot_transform)
-X_oot_transform = onehot.transform(X_oot_transform)
-X_oot_transform
-
-
-# %%
 # SEMMA - MODEL
 #model = tree.DecisionTreeClassifier(random_state=42,
 #                                    min_samples_leaf=50)
@@ -173,20 +147,30 @@ model = ensemble.RandomForestClassifier(n_estimators=150,
                                         random_state=42,
                                         min_samples_leaf=200,
                                         n_jobs=-1)
-model.fit(X_train_transform,y_train)
+# %%
+# Criando uma Pipeline para otimizar o treinamento do meu modelo
+model_pipeline = pipeline.Pipeline(steps=[
+    ("Remoção de features",drop_features),
+    ("Imputação de 0",imputation_0),
+    ("Imputação novo Usuário",imputation_cat),
+    ("Imputação de 1000",imputation_1000),
+    ("Onehot encoding",onehot),
+    ("Modelo",model)
+])
 
+model_pipeline.fit(X_train,y_train)
 
 # %%
 # SEMMA - ASSESS 
 
-y_pred_train = model.predict(X_train_transform)
-y_proba_train = model.predict_proba(X_train_transform)[:,1]
+y_pred_train = model_pipeline.predict(X_train)
+y_proba_train = model_pipeline.predict_proba(X_train)[:,1]
 
-y_pred_test = model.predict(X_test_transform)
-y_proba_test = model.predict_proba(X_test_transform)[:,1]
+y_pred_test = model_pipeline.predict(X_test)
+y_proba_test = model_pipeline.predict_proba(X_test)[:,1]
 
-y_pred_oot = model.predict(X_oot_transform)
-y_proba_oot = model.predict_proba(X_oot_transform)[:,1]
+y_pred_oot = model_pipeline.predict(df_oot[features])
+y_proba_oot = model_pipeline.predict_proba(df_oot[features])[:,1]
 
 acc_train = metrics.accuracy_score(y_train,y_pred_train)
 auc_train = metrics.roc_auc_score(y_train,y_proba_train)
@@ -203,4 +187,26 @@ print(f"Acuracia no teste : {acc_test:.2f}")
 print(f"AUC no teste : {auc_test:.2f}")
 print(f"Acuracia na OOT : {acc_oot:.2f}")
 print(f"AUC na OOT : {auc_oot:.2f}")
+# %%
+# Analisando as features que mais estao ajudando no meu modelo
+features_names = model_pipeline[:-1].transform(X_train.head(1)).columns.tolist()
+features_names
+
+features_importance = model_pipeline["Modelo"].feature_importances_
+features_importance
+
+df_feature_importance  = pd.Series(features_importance,index=features_names)
+df_feature_importance.head(100).sort_values(ascending=False)
+# %%
+# Salvando meu Modelo em um arquivo .pkl 
+Meu_Modelo = pd.Series(
+    {"Model":model_pipeline,
+     "Features": X_train.columns.tolist(),
+     "AUC Treino ":auc_train,
+     "AUC Teste ":auc_test,
+     "AUC OOT ":auc_oot,
+     }
+)
+Meu_Modelo.to_pickle("My_Model.pkl")
+
 # %%

@@ -6,6 +6,7 @@ kaggle.json
 # data
 *.csv
 *.db
+*.pkl
 
 # cache e artefatos
 mlartifacts
