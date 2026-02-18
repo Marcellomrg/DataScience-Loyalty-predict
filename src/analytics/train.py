@@ -3,6 +3,11 @@ import pandas as pd
 import sqlalchemy
 from sklearn import model_selection,tree,ensemble,metrics,pipeline
 from feature_engine import imputation,encoding,selection
+import matplotlib.pyplot as plt
+import mlflow
+
+mlflow.set_tracking_uri("http://localhost:5000")
+mlflow.set_experiment(experiment_name="Fiel_tmw")
 
 pd.set_option('display.max_columns',500)
 pd.set_option('display.max_rows',500)
@@ -143,51 +148,81 @@ onehot = encoding.OneHotEncoder(variables=cat_features)
 # SEMMA - MODEL
 #model = tree.DecisionTreeClassifier(random_state=42,
 #                                    min_samples_leaf=50)
-model = ensemble.RandomForestClassifier(n_estimators=150,
-                                        random_state=42,
-                                        min_samples_leaf=200,
-                                        n_jobs=-1)
+#model = ensemble.RandomForestClassifier(n_estimators=150,
+#                                        random_state=42,
+#                                        min_samples_leaf=200,
+#                                        n_jobs=-1)
+model = ensemble.AdaBoostClassifier(n_estimators=500
+                                    ,random_state=42
+                                    ,learning_rate=0.01,
+                                    )
 # %%
-# Criando uma Pipeline para otimizar o treinamento do meu modelo
-model_pipeline = pipeline.Pipeline(steps=[
-    ("Remoção de features",drop_features),
-    ("Imputação de 0",imputation_0),
-    ("Imputação novo Usuário",imputation_cat),
-    ("Imputação de 1000",imputation_1000),
-    ("Onehot encoding",onehot),
-    ("Modelo",model)
-])
+with mlflow.start_run():
 
-model_pipeline.fit(X_train,y_train)
+    mlflow.sklearn.autolog()
+    # Criando uma Pipeline para otimizar o treinamento do meu modelo
+    model_pipeline = pipeline.Pipeline(steps=[
+        ("Remoção de features",drop_features),
+        ("Imputação de 0",imputation_0),
+        ("Imputação novo Usuário",imputation_cat),
+        ("Imputação de 1000",imputation_1000),
+        ("Onehot encoding",onehot),
+        ("Modelo",model)
+    ])
+    model_pipeline.fit(X_train,y_train)
+    # SEMMA - ASSESS 
+    y_pred_train = model_pipeline.predict(X_train)
+    y_proba_train = model_pipeline.predict_proba(X_train)[:,1]
 
+    y_pred_test = model_pipeline.predict(X_test)
+    y_proba_test = model_pipeline.predict_proba(X_test)[:,1]
+
+    y_pred_oot = model_pipeline.predict(df_oot[features])
+    y_proba_oot = model_pipeline.predict_proba(df_oot[features])[:,1]
+
+    acc_train = metrics.accuracy_score(y_train,y_pred_train)
+    auc_train = metrics.roc_auc_score(y_train,y_proba_train)
+
+    acc_test = metrics.accuracy_score(y_test,y_pred_test)
+    auc_test = metrics.roc_auc_score(y_test,y_proba_test)
+
+    acc_oot = metrics.accuracy_score(df_oot[target],y_pred_oot)
+    auc_oot = metrics.roc_auc_score(df_oot[target],y_proba_oot)
+
+    mlflow.log_metrics({
+        "acc_train":acc_train,
+        "auc_train":auc_train,
+        "acc_test":acc_test,
+        "auc_test":auc_test,
+        "acc_oot":acc_oot,
+        "auc_oot":auc_oot,
+    })
+    roc_train = metrics.roc_curve(y_train,y_proba_train)
+    roc_test = metrics.roc_curve(y_test,y_proba_test)
+    roc_oot = metrics.roc_curve(df_oot[target],y_proba_oot)
+
+    plt.figure(figsize=(10,4))
+    plt.plot(roc_train[0],roc_train[1])
+    plt.plot(roc_test[0],roc_test[1])
+    plt.plot(roc_oot[0],roc_oot[1])
+    plt.xlabel("1 - Especificidade")
+    plt.ylabel("Recall")
+    plt.title("Curva ROC")
+    plt.grid(True)
+    plt.legend([f"AUC Treino: {auc_train:.4f}",
+                f"AUC Teste: {auc_test:.4f}",
+                f"AUC OOT: {auc_oot:.4f}"])
+    plt.savefig("curva_roc.png")
+    mlflow.log_artifact("curva_roc.png")
+
+    #print(f"Acuracia no treino : {acc_train:.2f}")
+    #print(f"AUC no treino : {auc_train:.2f}")
+    #print(f"Acuracia no teste : {acc_test:.2f}")
+    #print(f"AUC no teste : {auc_test:.2f}")
+    #print(f"Acuracia na OOT : {acc_oot:.2f}")
+    #print(f"AUC na OOT : {auc_oot:.2f}")
 # %%
-# SEMMA - ASSESS 
 
-y_pred_train = model_pipeline.predict(X_train)
-y_proba_train = model_pipeline.predict_proba(X_train)[:,1]
-
-y_pred_test = model_pipeline.predict(X_test)
-y_proba_test = model_pipeline.predict_proba(X_test)[:,1]
-
-y_pred_oot = model_pipeline.predict(df_oot[features])
-y_proba_oot = model_pipeline.predict_proba(df_oot[features])[:,1]
-
-acc_train = metrics.accuracy_score(y_train,y_pred_train)
-auc_train = metrics.roc_auc_score(y_train,y_proba_train)
-
-acc_test = metrics.accuracy_score(y_test,y_pred_test)
-auc_test = metrics.roc_auc_score(y_test,y_proba_test)
-
-acc_oot = metrics.accuracy_score(df_oot[target],y_pred_oot)
-auc_oot = metrics.roc_auc_score(df_oot[target],y_proba_oot)
-
-print(f"Acuracia no treino : {acc_train:.2f}")
-print(f"AUC no treino : {auc_train:.2f}")
-print(f"Acuracia no teste : {acc_test:.2f}")
-print(f"AUC no teste : {auc_test:.2f}")
-print(f"Acuracia na OOT : {acc_oot:.2f}")
-print(f"AUC na OOT : {auc_oot:.2f}")
-# %%
 # Analisando as features que mais estao ajudando no meu modelo
 features_names = model_pipeline[:-1].transform(X_train.head(1)).columns.tolist()
 features_names
@@ -208,5 +243,8 @@ Meu_Modelo = pd.Series(
      }
 )
 Meu_Modelo.to_pickle("My_Model.pkl")
+
+# %%
+
 
 # %%
