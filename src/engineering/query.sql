@@ -1,0 +1,1 @@
+SELECT max(DtCriacao) FROM transacoes
