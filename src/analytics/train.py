@@ -148,14 +148,25 @@ onehot = encoding.OneHotEncoder(variables=cat_features)
 # SEMMA - MODEL
 #model = tree.DecisionTreeClassifier(random_state=42,
 #                                    min_samples_leaf=50)
-#model = ensemble.RandomForestClassifier(n_estimators=150,
-#                                        random_state=42,
-#                                        min_samples_leaf=200,
-#                                        n_jobs=-1)
-model = ensemble.AdaBoostClassifier(n_estimators=500
-                                    ,random_state=42
-                                    ,learning_rate=0.01,
-                                    )
+model = ensemble.RandomForestClassifier(random_state=42,
+                                        n_jobs=-1)
+
+#model = ensemble.AdaBoostClassifier(n_estimators=500
+#                                    ,random_state=42
+#                                    ,learning_rate=0.01,
+#                                    )
+
+params = {
+    "n_estimators":[100,150,200,300,400,500],
+    "min_samples_leaf":[50,100,150,200,250],
+    "max_depth":[2,3,5,10]
+}               
+
+grid = model_selection.GridSearchCV(model
+                                    ,param_grid=params
+                                    ,verbose=3
+                                    ,scoring="roc_auc"
+                                    ,cv=3)
 # %%
 with mlflow.start_run():
 
@@ -167,7 +178,7 @@ with mlflow.start_run():
         ("Imputação novo Usuário",imputation_cat),
         ("Imputação de 1000",imputation_1000),
         ("Onehot encoding",onehot),
-        ("Modelo",model)
+        ("Algoritmo",grid)
     ])
     model_pipeline.fit(X_train,y_train)
     # SEMMA - ASSESS 
