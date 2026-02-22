@@ -1,1 +1,1 @@
-SELECT max(DtCriacao) FROM transacoes
+SELECT max(DtRef) FROM fs_transacional
