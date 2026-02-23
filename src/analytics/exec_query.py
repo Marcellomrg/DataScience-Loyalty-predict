@@ -27,7 +27,7 @@ def ingest_dates(start,stop,monthly = False):
 
     return dates 
 
-def exec_query(dt_start,dt_stop,table,db_origin,db_target,monthly):
+def exec_query(dt_start,dt_stop,table,db_origin,db_target,monthly,mode='append'):
 
     # Criando conexao com os database
     engine_app = sqlalchemy.create_engine(f"sqlite:///../../data/{db_origin}/database.db")
@@ -38,18 +38,19 @@ def exec_query(dt_start,dt_stop,table,db_origin,db_target,monthly):
 
     for i in tqdm(dates):
 
-        with engine_analytics.connect() as con:
-            try:
-                con.execute(sqlalchemy.text(f"DELETE FROM {table} WHERE dtRef = date('{i}','-1 day')"))
-                con.commit()
+        if mode == 'append':
+            with engine_analytics.connect() as con:
+                try:
+                    con.execute(sqlalchemy.text(f"DELETE FROM {table} WHERE dtRef = date('{i}','-1 day')"))
+                    con.commit()
 
-            except Exception as e:
-                print(e)
+                except Exception as e:
+                    print(e)
 
         print(i)
         format_query = query.format(date=i)
         df = pd.read_sql(format_query,engine_app)
-        df.to_sql(f"{table}",engine_analytics,index=False,if_exists='append')
+        df.to_sql(f"{table}",engine_analytics,index=False,if_exists=mode)
     
 # %%
 
@@ -64,6 +65,7 @@ def main():
     parser.add_argument("--table",type=str,help="Tabela que vai ser processada com o mesmo nome do arquivo")
     parser.add_argument("--db_origin",choices=['loyalty-system','education-plataform','analytics'],default='loyalty-system')
     parser.add_argument("--db_target",choices=['analytics'],default='analytics')
+    parser.add_argument("--mode",choices=['append','replace'])
 
     args = parser.parse_args()
     

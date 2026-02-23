@@ -14,15 +14,20 @@ last_version
 # Carregando dados
 con = sqlalchemy.create_engine("sqlite:///../../data/analytics/database.db")
 
-df = pd.read_sql("SELECT * FROM  abt_fiel",con)
-df.head()
+data = pd.read_sql("SELECT * FROM  fs_all",con)
+data.head()
 # %%
 # Carregando meu modelo
 model = mlflow.sklearn.load_model(f"models:///Model_Fiel/{last_version}")
 # %%
 # Realizando a predicao usando meu modelo
-predict_proba = model.predict_proba(df[model.feature_names_in_])[:,1]
+predict_proba = model.predict_proba(data[model.feature_names_in_])[:,1]
 
-df["predict"] = predict_proba
-df.head()
+data["predict_fiel"] = predict_proba
+data.head()
+# %%
+data = data[['dtRef','IdCliente','predict_fiel']]
+data
+# %%
+data.to_sql("score_fiel",con,index=False,if_exists='replace')
 # %%

@@ -4,8 +4,8 @@ import sqlalchemy
 from sklearn import model_selection,tree,ensemble,metrics,pipeline
 from feature_engine import imputation,encoding,selection
 import matplotlib.pyplot as plt
-import mlflow
 
+import mlflow
 mlflow.set_tracking_uri("http://localhost:5000")
 mlflow.set_experiment(experiment_name="Fiel_tmw")
 
